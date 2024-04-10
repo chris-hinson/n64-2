@@ -1,0 +1,10 @@
+[package]
+name = "n64-2"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+n64_disas = { path = "../n64_disas" }
+proc-bitfield = "0.3.1"
