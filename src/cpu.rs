@@ -7,23 +7,29 @@ use std::cell::RefCell;
 use std::ops::{Index, IndexMut};
 use std::rc::Rc;
 
+use crate::system;
 use crate::system::System;
+
+struct fuckyoutype{field: *mut system::System};
+unsafe impl Send for fuckyoutype {}
+unsafe impl Sync for fuckyoutype{}
+
 
 //struct for the main VR4300 cpu
 //#[derive(Default)]
-pub struct ICPU<'a> {
+pub struct ICPU {
     pub rf: Rf,
     //needs cop0(cpu controll coprocessor) - NOTE: coprocessors are on the same die!!! they are not separate hardware!!
     pub cop0: cop0,
     //needs cop1 (fp coprocessor)
     //pub write_cb: Option<Rc<RefCell<&'a mut System>>>,
-    pub parent: *mut System<'a>,
+    pub parent: fuckyoutype,
     //////////////////////////////////
     //Rcs to other pieces of the system that we can touch
     //mem: Rc<RefCell<Rdram>>,
     //cart: Rc<RefCell<Cart>>,
 }
-impl<'a> Cpu for ICPU<'a> {
+impl Cpu for ICPU{
     fn get_reg(&self, reg: disas::instr::GPR) -> Result<u64, std::io::Error> {
         Ok(self.rf[reg])
     }
@@ -59,22 +65,22 @@ impl<'a> Cpu for ICPU<'a> {
         unimplemented!("havent dealt with throwing exceptions yet")
     }
     fn read(&self, addr: usize, len: usize) -> std::io::Result<Vec<u8>> {
-        unsafe { return Ok((*self.parent).read(addr, len)) }
+        unsafe { return Ok((*(self.parent).field).read(addr, len)) }
     }
     fn write(&mut self, addr: usize, bytes: &[u8]) -> std::io::Result<usize> {
         unsafe {
-            (*self.parent).write(addr, bytes);
+            (*(self.parent).field).write(addr, bytes);
         }
         Ok(bytes.len())
     }
 }
 
-impl<'a> ICPU<'a> {
+impl ICPU {
     pub fn new() -> Self {
         Self {
             rf: Rf::default(),
             cop0: cop0::default(),
-            parent: std::ptr::null_mut(),
+            parent: fuckyoutype{field: std::ptr::null_mut()},
         }
     }
 }

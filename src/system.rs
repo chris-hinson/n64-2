@@ -1,6 +1,9 @@
+use std::sync::mpsc::{Receiver, Sender};
 use std::{cell::RefCell, rc::Rc};
 
-use disas::Disasembler;
+use disas::{BasicBlock, Disasembler};
+
+use std::thread::{self, JoinHandle};
 
 use crate::cart::Cart;
 use crate::cpu::{self, ICPU};
@@ -8,16 +11,20 @@ use crate::pi::PI;
 use crate::rdram::Rdram;
 use crate::rsp::Rsp;
 
-pub struct System<'a> {
-    pub disas: Disasembler<'a>,
-    pub cpu: ICPU<'a>,
+pub struct System {
+    pub disas: Disasembler,
+    pub cpu: ICPU,
     pub pi: PI,
     pub rdram: Rdram,
     pub cart: Cart,
     pub rsp: Rsp,
+
+
+    disas_req: Receiver<u32>,
+    disas_read: Sender<u32>,
 }
 //read and write
-impl<'a> System<'a> {
+impl System{
     pub fn write(&mut self, addr: usize, bytes: &[u8]) -> bool {
         let pa = self.virt_to_phys(addr);
         match pa {
@@ -106,7 +113,7 @@ impl<'a> System<'a> {
     }
 }
 
-impl<'a> System<'a> {
+impl System {
     pub fn boot(&mut self) {
         //who fucking knows if this is actually all the side effects. just boot me and go idgaf
         self.cpu.rf.gprs[20] = 0x1;
@@ -127,9 +134,11 @@ impl<'a> System<'a> {
             std::ptr::copy_nonoverlapping(src, dst, 0x1000);
         }
         self.cpu.rf.PC = 0xA4000040;
-        self.disas.data = &mut self.rsp.DMEM as *mut Vec<u8>;
-        self.disas.data_base_addr = 0x04000000;
+        //self.disas.data = &mut self.rsp.DMEM as *mut Vec<u8>;
+        //self.disas.data_base_addr = 0x04000000;
     }
+
+
 
     pub fn run(&mut self) {
         loop {
@@ -138,7 +147,35 @@ impl<'a> System<'a> {
             println!("fucking christ: {:x}", fuckingchrist);
             self.disas.find_basic_block(fuckingchrist);
             let the_block = self.disas.get_basic_block_at_addr*/
+            let pc_virt_addr = self.virt_to_phys(self.cpu.rf.PC as usize);
 
+            let mut handle:Option<JoinHandle<BasicBlock>> = None;
+            unsafe{
+                 handle = Some(thread::spawn(move || {
+                    return self.disas.clone().get_basic_block_at_addr(pc_virt_addr).unwrap();
+                }));
+            };
+            
+            'fuck: loop{
+                let instr_addr = self.disas_req.try_recv().unwrap();
+                println!("got request for instruction at addr {:#04x}",instr_addr);
+                if instr_addr == 0xFFFF_FFFF{
+                    println!("got stop byte");
+                    break 'fuck
+                }
+                let instr_bytes = u32::from_le_bytes(self.read(instr_addr as usize, 4)[0..4].try_into().expect("bitch"));
+                self.disas_read.send(instr_bytes).unwrap();
+                println!("sent back instruction at addr {:#04x}",instr_addr);
+            }
+
+            let bb = handle.unwrap().join().unwrap();
+
+            for instr in bb.instrs.iter(){
+                println!("{}", instr);
+                (instr.operation)(&mut self.cpu, *instr.as_ref());
+
+                println!("{}", self.cpu.rf);
+            }
 
 
             /*for (k, block) in self.disas.Blocks.iter() {
@@ -156,14 +193,14 @@ impl<'a> System<'a> {
         }
     }
 
-    pub fn find_basic_block(&mut self, addr:usize){
+    /*pub fn find_basic_block(&mut self, addr:usize){
         self.disas.find_basic_block(self.cpu.rf.PC);
         while self.
-    }
+    }*/
 }
 
-impl<'a> System<'a> {
-    pub fn new(d: Disasembler<'a>, cart: Cart) -> Self {
+impl System {
+    pub fn new(d: Disasembler, d_req:Receiver<u32>,d_read:Sender<u32>, cart: Cart) -> Self {
         System {
             disas: d,
             pi: PI::default(),
@@ -171,6 +208,9 @@ impl<'a> System<'a> {
             cpu: crate::cpu::ICPU::new(),
             rsp: Rsp::default(),
             cart,
+            disas_read: d_read,
+            disas_req: d_req,
+
         }
     }
 }
