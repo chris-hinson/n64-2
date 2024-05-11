@@ -1,10 +1,11 @@
 use std::sync::mpsc::{Receiver, Sender};
 use std::{cell::RefCell, rc::Rc};
 
-use disas::{BasicBlock, Disasembler};
+//use disas::{BasicBlock, Disasembler};
 
 use std::thread::{self, JoinHandle};
 
+use crate::asm::Disasembler;
 use crate::cart::Cart;
 use crate::cpu::{self, ICPU};
 use crate::pi::PI;
@@ -18,13 +19,9 @@ pub struct System {
     pub rdram: Rdram,
     pub cart: Cart,
     pub rsp: Rsp,
-
-
-    disas_req: Receiver<u32>,
-    disas_read: Sender<u32>,
 }
 //read and write
-impl System{
+impl System {
     pub fn write(&mut self, addr: usize, bytes: &[u8]) -> bool {
         let pa = self.virt_to_phys(addr);
         match pa {
@@ -69,9 +66,14 @@ impl System{
         true
     }
     pub fn read(&mut self, addr: usize, len: usize) -> Vec<u8> {
+        println!("system read at addr {:#x}, len {:#x}", addr, len);
         let pa = self.virt_to_phys(addr);
-        //RCP PI, not PI external bus
         match pa {
+            //RCP DMEM
+            0x04000000..=0x04000FFF => self.rsp.read(pa, len, false),
+            //RCP IMEM
+            0x04001000..=0x04001FFF => self.rsp.read(pa, len, true),
+            //RCP PI, not PI external bus
             0x04600000..=0x046FFFFF => self.pi.read(pa as u32, len).unwrap(),
             _ => unimplemented!("dont have reads for addr:{:x} yet", addr),
         }
@@ -127,6 +129,7 @@ impl System {
         //this goes to MI, which we havent bothered with yet, do it later
         //writes the value 0x01010101 to memory address 0x0430 0004.
 
+        //essentially fake ipl2
         //copies the first 0x1000 bytes from the cartridge (located at 0xb000 0000)to memory address 0xA400 0000
         unsafe {
             let dst = self.rsp.DMEM.as_mut_ptr();
@@ -138,69 +141,22 @@ impl System {
         //self.disas.data_base_addr = 0x04000000;
     }
 
-
-
     pub fn run(&mut self) {
         loop {
-            /*let fuckingchrist =
-                self.virt_to_phys(self.cpu.rf.PC as usize) ;
-            println!("fucking christ: {:x}", fuckingchrist);
-            self.disas.find_basic_block(fuckingchrist);
-            let the_block = self.disas.get_basic_block_at_addr*/
             let pc_virt_addr = self.virt_to_phys(self.cpu.rf.PC as usize);
-
-            let mut handle:Option<JoinHandle<BasicBlock>> = None;
-            unsafe{
-                 handle = Some(thread::spawn(move || {
-                    return self.disas.clone().get_basic_block_at_addr(pc_virt_addr).unwrap();
-                }));
-            };
-            
-            'fuck: loop{
-                let instr_addr = self.disas_req.try_recv().unwrap();
-                println!("got request for instruction at addr {:#04x}",instr_addr);
-                if instr_addr == 0xFFFF_FFFF{
-                    println!("got stop byte");
-                    break 'fuck
-                }
-                let instr_bytes = u32::from_le_bytes(self.read(instr_addr as usize, 4)[0..4].try_into().expect("bitch"));
-                self.disas_read.send(instr_bytes).unwrap();
-                println!("sent back instruction at addr {:#04x}",instr_addr);
+            self.disas.find_basic_block(pc_virt_addr);
+            let bb = self.disas.Blocks.get(&pc_virt_addr).unwrap();
+            for instr in bb.instrs.iter() {
+                print!("PC: {:#x}, {}", self.cpu.rf.PC, *instr);
+                (instr.operation)(&mut self.cpu, **instr);
+                self.cpu.rf.PC += 4;
             }
-
-            let bb = handle.unwrap().join().unwrap();
-
-            for instr in bb.instrs.iter(){
-                println!("{}", instr);
-                (instr.operation)(&mut self.cpu, *instr.as_ref());
-
-                println!("{}", self.cpu.rf);
-            }
-
-
-            /*for (k, block) in self.disas.Blocks.iter() {
-                println!("block contains {} instructions", block.instrs.len());
-                for instr in block.instrs.iter() {
-                    println!("{}", instr);
-                    (instr.operation)(&mut self.cpu, *instr.as_ref());
-
-                    println!("{}", self.cpu.rf);
-                }
-                }*/
-
-            //self.cpu.rf.PC = self.cpu.rf.PC +=
-            //let the_block = self.disas.Blocks.get()
         }
     }
-
-    /*pub fn find_basic_block(&mut self, addr:usize){
-        self.disas.find_basic_block(self.cpu.rf.PC);
-        while self.
-    }*/
 }
 
 impl System {
-    pub fn new(d: Disasembler, d_req:Receiver<u32>,d_read:Sender<u32>, cart: Cart) -> Self {
+    pub fn new(d: Disasembler, cart: Cart) -> Self {
         System {
             disas: d,
             pi: PI::default(),
@@ -208,9 +164,6 @@ impl System {
             cpu: crate::cpu::ICPU::new(),
             rsp: Rsp::default(),
             cart,
-            disas_read: d_read,
-            disas_req: d_req,
-
         }
     }
 }

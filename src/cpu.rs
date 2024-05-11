@@ -10,11 +10,6 @@ use std::rc::Rc;
 use crate::system;
 use crate::system::System;
 
-struct fuckyoutype{field: *mut system::System};
-unsafe impl Send for fuckyoutype {}
-unsafe impl Sync for fuckyoutype{}
-
-
 //struct for the main VR4300 cpu
 //#[derive(Default)]
 pub struct ICPU {
@@ -23,13 +18,13 @@ pub struct ICPU {
     pub cop0: cop0,
     //needs cop1 (fp coprocessor)
     //pub write_cb: Option<Rc<RefCell<&'a mut System>>>,
-    pub parent: fuckyoutype,
+    pub parent: *mut system::System,
     //////////////////////////////////
     //Rcs to other pieces of the system that we can touch
     //mem: Rc<RefCell<Rdram>>,
     //cart: Rc<RefCell<Cart>>,
 }
-impl Cpu for ICPU{
+impl Cpu for ICPU {
     fn get_reg(&self, reg: disas::instr::GPR) -> Result<u64, std::io::Error> {
         Ok(self.rf[reg])
     }
@@ -65,11 +60,11 @@ impl Cpu for ICPU{
         unimplemented!("havent dealt with throwing exceptions yet")
     }
     fn read(&self, addr: usize, len: usize) -> std::io::Result<Vec<u8>> {
-        unsafe { return Ok((*(self.parent).field).read(addr, len)) }
+        unsafe { return Ok((*self.parent).read(addr, len)) }
     }
     fn write(&mut self, addr: usize, bytes: &[u8]) -> std::io::Result<usize> {
         unsafe {
-            (*(self.parent).field).write(addr, bytes);
+            (*self.parent).write(addr, bytes);
         }
         Ok(bytes.len())
     }
@@ -80,7 +75,7 @@ impl ICPU {
         Self {
             rf: Rf::default(),
             cop0: cop0::default(),
-            parent: fuckyoutype{field: std::ptr::null_mut()},
+            parent: std::ptr::null_mut(),
         }
     }
 }
