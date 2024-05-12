@@ -150,6 +150,9 @@ impl System {
                 print!("PC: {:#x}, {}", self.cpu.rf.PC, *instr);
                 (instr.operation)(&mut self.cpu, **instr);
                 self.cpu.rf.PC += 4;
+                println!("----------------------------------------------------------");
+                println!("{}",self.cpu.rf);
+                println!("----------------------------------------------------------");
             }
         }
     }

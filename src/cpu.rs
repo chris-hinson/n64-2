@@ -56,7 +56,7 @@ impl Cpu for ICPU {
             false
         }
     }
-    fn throw_exception(&mut self, err: disas::instr::OpcodeExecutionError, delay_slot: bool) {
+    fn throw_exception(&mut self, err: disas::instr::Exception, delay_slot: bool) {
         unimplemented!("havent dealt with throwing exceptions yet")
     }
     fn read(&self, addr: usize, len: usize) -> std::io::Result<Vec<u8>> {
@@ -82,7 +82,7 @@ impl ICPU {
 
 //main register file of the cpu
 #[allow(non_snake_case)]
-#[derive(Default)]
+#[derive(Default,Debug)]
 pub struct Rf {
     //gprs - 32, 64 bit regs (always reads as 64-bit)
     pub gprs: [u64; 32],
