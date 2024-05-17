@@ -56,7 +56,7 @@ impl Disasembler {
 
         //did we just decode a block ending instruction?
         while !INSTR_WHICH_END_BASIC_BLOCK.contains(&cur_instr.opcode) {
-            println!("opcode: {:?}", cur_instr.opcode);
+            //println!("opcode: {:?}", cur_instr.opcode);
             cur_block.instrs.push(Rc::new(cur_instr));
 
             cur_bytes = unsafe { (*self.system).read(addr + 0xA0000000, 4) };
@@ -83,6 +83,8 @@ impl Disasembler {
         //}
 
         self.Blocks.insert(base_addr, cur_block);
+
+
     }
 }
 
@@ -99,4 +101,14 @@ pub struct BasicBlock {
 
     //each instruction in a basic block is actually a pointer to that opcode in the global instruction translation cache (ITC)
     pub instrs: Vec<Rc<Instruction>>,
+}
+
+impl std::fmt::Display for BasicBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f,"┌─────────────┐")?;
+        for (offset,op) in self.instrs.iter().enumerate(){
+            writeln!(f,"│{:#08x},{:?}│",self.base + offset,op.opcode)?;
+        }
+        writeln!(f,"└─────────────┘")
+    }
 }

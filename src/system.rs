@@ -5,6 +5,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use std::thread::{self, JoinHandle};
 
+use colored::Colorize;
+
 use crate::asm::Disasembler;
 use crate::cart::Cart;
 use crate::cpu::{self, ICPU};
@@ -25,13 +27,17 @@ impl System {
     pub fn write(&mut self, addr: usize, bytes: &[u8]) -> bool {
         let pa = self.virt_to_phys(addr);
         match pa {
+            //RDRAM
+            0x0000_0000..=0x03FFFFFF =>{
+                self.rdram.write(addr as u32, bytes.to_vec()).unwrap();
+            }
             //RCP PI, not PI external bus
             0x04600000..=0x046FFFFF => {
                 let possible_dma = self.pi.write(pa as u32, bytes.to_vec());
                 if possible_dma.is_some() {
-                    //debug!("begin PI DMA");
+                    self.log("begin PI DMA".yellow());
                     let dma_packet = possible_dma.unwrap();
-                    //debug!("PI DMA packet: {}", dma_packet);
+                    self.log(format!("PI DMA packet: {}", dma_packet).yellow());
 
                     //execute the dma
                     let len = dma_packet.len;
@@ -61,14 +67,17 @@ impl System {
                     }
                 }
             }
+            
+            
             _ => panic!("trying to write to a PA we have not mapped yet {:#08x}", pa),
         }
         true
     }
     pub fn read(&mut self, addr: usize, len: usize) -> Vec<u8> {
-        println!("system read at addr {:#x}, len {:#x}", addr, len);
+        //println!("system read at addr {:#x}, len {:#x}", addr, len);
         let pa = self.virt_to_phys(addr);
         match pa {
+            0x0000_0000..=0x03FFFFFF => self.rdram.read(pa as u32, len).unwrap(),
             //RCP DMEM
             0x04000000..=0x04000FFF => self.rsp.read(pa, len, false),
             //RCP IMEM
@@ -82,10 +91,24 @@ impl System {
         let modified_virt = virt as i32 as u32;
         match modified_virt {
             0x0000_0000..=0x7FFF_FFFF => {
-                panic!("tried to convert a virtual address in KUSEG {virt:#x}")
+                //panic!("tried to convert a virtual address in KUSEG {modified_virt:#x}")
+                return modified_virt as usize;
             } //KUSEG
             0x8000_0000..=0x9FFF_FFFF => {
-                panic!("tried to convert a virtual address in KSEG0 {virt:#x}")
+                //panic!("tried to convert a virtual address in KSEG0 {modified_virt:#x}")
+                //trace!("in system::virt_to_phys, virt is {:#x}", virt);
+
+                let conversion = modified_virt.checked_sub(0x8000_0000);
+
+                //trace!("after sub: {:?}", conversion);
+                match conversion {
+                    Some(v) => {
+                        //trace!("value is {:#x}", v);
+                        //println!("VA: {:#016x}, PA: {:#016x}", virt, v);
+                        return v as usize;
+                    }
+                    None => panic!("error converting address in KSEG1 {modified_virt:#x}"),
+                }
             } //KSEG0
             0xA000_0000..=0xBFFF_FFFF => {
                 //trace!("in system::virt_to_phys, virt is {:#x}", virt);
@@ -96,17 +119,17 @@ impl System {
                 match conversion {
                     Some(v) => {
                         //trace!("value is {:#x}", v);
-                        println!("VA: {:#016x}, PA: {:#016x}", virt, v);
+                        //println!("VA: {:#016x}, PA: {:#016x}", virt, v);
                         return v as usize;
                     }
-                    None => panic!("error converting address in KSEG1 {virt:#x}"),
+                    None => panic!("error converting address in KSEG1 {modified_virt:#x}"),
                 }
             } //KSEG1
             0xC000_0000..=0xDFFF_FFFF => {
-                panic!("tried to convert a virtual address in KSEG2 {virt:#x}")
+                panic!("tried to convert a virtual address in KSEG2 {modified_virt:#x}")
             } //KSEG2
             0xE000_0000..=0xFFFF_FFFF => {
-                panic!("tried to convert a virtual address in KSEG3 {virt:#x}")
+                panic!("tried to convert a virtual address in KSEG3 {modified_virt:#x}")
             } //KSEG3
             _ => {
                 panic!("tried to convert a VA outside the range of a 32 bit unsigned integer")
@@ -146,14 +169,14 @@ impl System {
             let pc_virt_addr = self.virt_to_phys(self.cpu.rf.PC as usize);
             self.disas.find_basic_block(pc_virt_addr);
             let bb = self.disas.Blocks.get(&pc_virt_addr).unwrap();
+            println!("found basic block \n{}",bb);
             for instr in bb.instrs.iter() {
-                print!("PC: {:#x}, {}", self.cpu.rf.PC, *instr);
+                print!("{}",format!("PC: {:#x}, \n\t{}", self.cpu.rf.PC, *instr).green());
                 (instr.operation)(&mut self.cpu, **instr);
                 self.cpu.rf.PC += 4;
-                println!("----------------------------------------------------------");
-                println!("{}",self.cpu.rf);
-                println!("----------------------------------------------------------");
+                //self.cpu.log(&format!("{}",self.cpu.rf));
             }
+            println!("{}",self.cpu.rf);
         }
     }
 }
@@ -168,5 +191,9 @@ impl System {
             rsp: Rsp::default(),
             cart,
         }
+    }
+
+    pub fn log(&self, msg:colored::ColoredString){
+        println!("{msg}");
     }
 }

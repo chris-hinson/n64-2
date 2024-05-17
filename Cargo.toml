@@ -6,5 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+colored = "2.1.0"
 n64_disas = { path = "../mips-disasembler" }
 proc-bitfield = "0.3.1"

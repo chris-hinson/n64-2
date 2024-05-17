@@ -7,6 +7,8 @@ use std::cell::RefCell;
 use std::ops::{Index, IndexMut};
 use std::rc::Rc;
 
+use colored::*;
+
 use crate::system;
 use crate::system::System;
 
@@ -78,11 +80,21 @@ impl ICPU {
             parent: std::ptr::null_mut(),
         }
     }
+
+    pub fn log(&self, msg: &str){
+        let mut new_msg = "[cpu] ".to_string();
+        new_msg.push_str(msg);
+        unsafe{
+         (*self.parent).log(new_msg.blue());
+        }
+    }
 }
+
+
 
 //main register file of the cpu
 #[allow(non_snake_case)]
-#[derive(Default,Debug)]
+#[derive(Default)]
 pub struct Rf {
     //gprs - 32, 64 bit regs (always reads as 64-bit)
     pub gprs: [u64; 32],
@@ -113,6 +125,12 @@ impl std::fmt::Display for Rf {
             write!(f, "{}:{:#016x}\n", GPR::from(i as u8), self.gprs[i])?;
         }
         Ok(())
+    }
+}
+
+impl From<Rf> for String{
+    fn from(value: Rf) -> Self {
+        format!("{value}")
     }
 }
 

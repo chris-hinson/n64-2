@@ -25,7 +25,8 @@ pub struct Rdram {
 impl Default for Rdram {
     fn default() -> Self {
         return Rdram {
-            mem: Vec::with_capacity(4194304),
+            //mem: Vec::with_capacity(4194304),
+            mem: vec![0;4194304],
             RI_SELECT: 0x14,
             RI_MODE: 0,
             RI_CONFIG: 0,
