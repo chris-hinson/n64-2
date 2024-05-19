@@ -8,7 +8,7 @@ mod cart;
 mod pi;
 mod rdram;
 mod rsp;
-
+mod si;
 fn main() {
     let cart = Cart::new("./addiu_simpleboot.z64");
     //let d = disas::Disasembler::new(disas_requester,disas_reader);

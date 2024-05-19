@@ -13,11 +13,13 @@ use crate::cpu::{self, ICPU};
 use crate::pi::PI;
 use crate::rdram::Rdram;
 use crate::rsp::Rsp;
+use crate::si::SI;
 
 pub struct System {
     pub disas: Disasembler,
     pub cpu: ICPU,
     pub pi: PI,
+    pub si: SI,
     pub rdram: Rdram,
     pub cart: Cart,
     pub rsp: Rsp,
@@ -67,6 +69,18 @@ impl System {
                     }
                 }
             }
+            //PIF ROM
+            0x1FC0_0000..=0x1FC007BF => {
+                self.si.write(pa, bytes);
+            },
+            //PIF RAM
+            0x1FC007C0..=0x1FC007FF =>{
+                self.si.write(pa, bytes);
+            },
+            //RESERVERD
+            0x1FC00800..=0x1FCFFFFF=>{
+                panic!("bad paddr in system write. SI external bus reserved space {:x}",pa)
+            },
 
             _ => panic!("trying to write to a PA we have not mapped yet {:#08x}", pa),
         }
@@ -83,6 +97,19 @@ impl System {
             0x04001000..=0x04001FFF => self.rsp.read(pa, len, true),
             //RCP PI, not PI external bus
             0x04600000..=0x046FFFFF => self.pi.read(pa as u32, len).unwrap(),
+
+            //PIF ROM
+            0x1FC0_0000..=0x1FC007BF => {
+                self.si.read(pa, len)
+            },
+            //PIF RAM
+            0x1FC007C0..=0x1FC007FF =>{
+                self.si.read(pa, len)
+            },
+            //RESERVERD
+            0x1FC00800..=0x1FCFFFFF=>{
+                panic!("bad paddr in system write. SI external bus reserved space {:x}",pa)
+            },
             _ => unimplemented!("dont have reads for addr:{:x} yet", addr),
         }
     }
@@ -188,6 +215,7 @@ impl System {
         System {
             disas: d,
             pi: PI::default(),
+            si: SI::default(),
             rdram: Rdram::default(),
             cpu: crate::cpu::ICPU::new(),
             rsp: Rsp::default(),
