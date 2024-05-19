@@ -28,7 +28,7 @@ impl System {
         let pa = self.virt_to_phys(addr);
         match pa {
             //RDRAM
-            0x0000_0000..=0x03FFFFFF =>{
+            0x0000_0000..=0x03FFFFFF => {
                 self.rdram.write(addr as u32, bytes.to_vec()).unwrap();
             }
             //RCP PI, not PI external bus
@@ -67,8 +67,7 @@ impl System {
                     }
                 }
             }
-            
-            
+
             _ => panic!("trying to write to a PA we have not mapped yet {:#08x}", pa),
         }
         true
@@ -91,8 +90,8 @@ impl System {
         let modified_virt = virt as i32 as u32;
         match modified_virt {
             0x0000_0000..=0x7FFF_FFFF => {
-                //panic!("tried to convert a virtual address in KUSEG {modified_virt:#x}")
-                return modified_virt as usize;
+                panic!("tried to convert a virtual address in KUSEG {modified_virt:#x}")
+                //return modified_virt as usize;
             } //KUSEG
             0x8000_0000..=0x9FFF_FFFF => {
                 //panic!("tried to convert a virtual address in KSEG0 {modified_virt:#x}")
@@ -169,14 +168,17 @@ impl System {
             let pc_virt_addr = self.virt_to_phys(self.cpu.rf.PC as usize);
             self.disas.find_basic_block(pc_virt_addr);
             let bb = self.disas.Blocks.get(&pc_virt_addr).unwrap();
-            println!("found basic block \n{}",bb);
+            println!("found basic block \n{}", bb);
             for instr in bb.instrs.iter() {
-                print!("{}",format!("PC: {:#x}, \n\t{}", self.cpu.rf.PC, *instr).green());
+                print!(
+                    "{}",
+                    format!("PC: {:#x}, \n\t{}", self.cpu.rf.PC, *instr).green()
+                );
                 (instr.operation)(&mut self.cpu, **instr);
                 self.cpu.rf.PC += 4;
-                //self.cpu.log(&format!("{}",self.cpu.rf));
+                self.cpu.log(&format!("{}", self.cpu.rf));
             }
-            println!("{}",self.cpu.rf);
+            println!("{}", self.cpu.rf);
         }
     }
 }
@@ -193,7 +195,7 @@ impl System {
         }
     }
 
-    pub fn log(&self, msg:colored::ColoredString){
+    pub fn log(&self, msg: colored::ColoredString) {
         println!("{msg}");
     }
 }
