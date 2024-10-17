@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 colored = "2.1.0"
+itertools = "0.13.0"
 n64_disas = { path = "../mips-disasembler" }
 proc-bitfield = "0.3.1"

@@ -7,6 +7,8 @@ use std::cell::RefCell;
 use std::ops::{Index, IndexMut};
 use std::rc::Rc;
 
+use itertools::Itertools;
+
 use colored::*;
 
 use crate::system;
@@ -81,16 +83,14 @@ impl ICPU {
         }
     }
 
-    pub fn log(&self, msg: &str){
-        let mut new_msg = "[cpu] ".to_string();
+    pub fn log(&self, msg: &str) {
+        let mut new_msg = "".to_string();
         new_msg.push_str(msg);
-        unsafe{
-         (*self.parent).log(new_msg.blue());
+        unsafe {
+            (*self.parent).log(new_msg.blue());
         }
     }
 }
-
-
 
 //main register file of the cpu
 #[allow(non_snake_case)]
@@ -119,16 +119,49 @@ pub struct Rf {
 
 impl std::fmt::Display for Rf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        //print gprs
-        write!(f, "gprs:\n")?;
-        for (i, g) in self.gprs.iter().enumerate() {
-            write!(f, "{}:{:#016x}\n", GPR::from(i as u8), self.gprs[i])?;
+        let NUM_REGS_PER_ROW = 4;
+        write!(f, "╭")?;
+        for _i in 0..NUM_REGS_PER_ROW - 1 {
+            write!(f, "──────┬────────────────────")?;
+            write!(f, "┬")?;
         }
+        write!(f, "──────┬────────────────────╮\n")?;
+
+        let iter = &mut self.gprs.iter().enumerate().peekable();
+        loop {
+            //while let Some(v) = iter.next() {
+            for col in 0..NUM_REGS_PER_ROW {
+                let next = iter.next().unwrap();
+                write!(
+                    f,
+                    "│ {: ^4} │ {:>#018x} ",
+                    GPR::from(next.0 as u8).to_string(),
+                    next.1,
+                )?;
+            }
+            write!(f, "|\n")?;
+
+            if iter.peek().is_some() {
+                write!(f, "├")?;
+                for _i in 0..NUM_REGS_PER_ROW - 1 {
+                    write!(f, "──────┼────────────────────")?;
+                    write!(f, "┼")?;
+                }
+                write!(f, "──────┼────────────────────┤\n")?;
+            } else {
+                break;
+            }
+        }
+        write!(f, "╰")?;
+        for _i in 0..NUM_REGS_PER_ROW - 1 {
+            write!(f, "──────┴────────────────────")?;
+            write!(f, "┴")?;
+        }
+        write!(f, "──────┴────────────────────╯\n")?;
         Ok(())
     }
 }
-
-impl From<Rf> for String{
+impl From<Rf> for String {
     fn from(value: Rf) -> Self {
         format!("{value}")
     }
